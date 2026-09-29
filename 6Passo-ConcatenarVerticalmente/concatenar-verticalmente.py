@@ -1,49 +1,62 @@
-"""Concatena verticalmente as colunas da prova.
+"""
+Propósito: concatenas verticalmente as imagens de cada pasta vinda do passo 5
+Autor: Alexandre Nassar de Peder
+Criação: 02/10/2025
+Atualização: 03/06/2026
 
-Autor da adaptacao: Raul
-Baseado no fluxo desenvolvido por Alexandre Nassar de Peder.
+OBS1: puxe a pasta "divididas-sem-bordas-do-meio" do passo 5 para essa pasta do passo 6
+
+OBS2: o objetivo deste passo é pegar as colunas já recortadas e empilhar uma em cima da outra, na ordem correta, para formar uma única imagem final. Futuramente, essa imagem concatenada será dividida em imagens de cada questão, mas isso será feito no passo 7.
+
+OBS3: este código vai criar uma imagem final chamada "colunas_concatenadas_verticalmente.png" que vai ter todas as colunas concatenadas verticalmente na ordem correta
+
+OBS4: não compensa concatenar as páginas inteiras. Tenha isso em mente para o passo 7. Concatene apenas as colunas.
+
+OBS5: tem provas que as colunas são de tamanhos diferentes. Tenha isso em mente. Não ajuda muito ter uma coluna maior que a outra. Se esse for o seu caso, você pode ajustar o código para lidar com isso, tal como concatenar as colunas do mesmo tamanho e depois concatenar as colunas menores em outra imagem. Mas isso é um caso específico. Se precisar, coloque as colunas do mesmo tamanho em uma única pasta, e execute atualizando as linhas 24 e 60
+
+OBS6: execute o código
 """
 
-from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-RAIZ = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(RAIZ))
-
 from PIL import Image
+import os
+import re
 
-from config import PASTAS, TOTAL_IMAGENS_ORGANIZADAS
-from utilitarios.comum import abrir_rgb, caminho_relativo, listar_pngs, ordenar_colunas
+pasta_imagens = "divididas-sem-bordas-do-meio"
+pasta_saida = "."
+os.makedirs(pasta_saida, exist_ok=True)
 
-Image.MAX_IMAGE_PIXELS = None
+# Função para extrair o número da página e ordenar corretamente
+def get_sort_key(nome_arquivo):
+    # Extrai o número da página
+    numero = int(re.search(r'pagina_enem_(\d+)_', nome_arquivo).group(1))
+    # Define a ordem: esquerda primeiro (0), depois direita (1)
+    lado = 0 if 'esquerda' in nome_arquivo else 1
+    return (numero, lado)
 
+# Pegar e ordenar as imagens corretamente
+arquivos = [f for f in os.listdir(pasta_imagens) if f.endswith('.png')]
+arquivos.sort(key=get_sort_key)
 
-def main() -> None:
-    """Concatena na ordem pagina esquerda, pagina direita."""
-    entrada = caminho_relativo(PASTAS["colunas"])
-    destino = caminho_relativo(PASTAS["concatenada"])
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    if destino.exists():
-        destino.unlink()
-    arquivos = ordenar_colunas(listar_pngs(entrada))
-    if len(arquivos) != TOTAL_IMAGENS_ORGANIZADAS:
-        raise RuntimeError(f"Esperadas {TOTAL_IMAGENS_ORGANIZADAS} imagens, encontradas {len(arquivos)}.")
-    imagens = [abrir_rgb(p) for p in arquivos]
-    largura = max(img.width for img in imagens)
-    altura = sum(img.height for img in imagens)
-    saida = Image.new("RGB", (largura, altura), "white")
-    y = 0
-    for arquivo, img in zip(arquivos, imagens):
-        saida.paste(img, (0, y))
-        print(f"{arquivo.name}: y={y}, tamanho={img.width}x{img.height}")
-        y += img.height
-        img.close()
-    saida.save(destino)
-    print(f"Imagem concatenada salva: {destino} ({largura}x{altura}px)")
-    saida.close()
+# Abrir todas as imagens na ordem correta
+imagens = []
+for arquivo in arquivos:
+    caminho = os.path.join(pasta_imagens, arquivo)
+    imagens.append(Image.open(caminho))
+    print(f"Adicionando: {arquivo}")  # Para verificar a ordem
 
+# Encontrar a largura máxima
+largura_max = max(img.width for img in imagens)
 
-if __name__ == "__main__":
-    main()
+# Concatenar verticalmente
+altura_total = sum(img.height for img in imagens)
+imagem_final = Image.new('RGB', (largura_max, altura_total))
+
+y = 0
+for img in imagens:
+    imagem_final.paste(img, (0, y))
+    y += img.height
+
+# Salvar
+imagem_final.save(os.path.join(pasta_saida, 'colunas_concatenadas_verticalmente.png'))
+print("Imagens concatenadas na ordem correta!")
+print(f"Ordem dos arquivos: {arquivos}")

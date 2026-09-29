@@ -1,44 +1,51 @@
-"""Divide as paginas sem bordas em duas colunas.
+"""
+Propósito: Cortar as imagens de colunas ao meio. As imagens já estão sem as bordas externas, agora só cortar ao meio
+Autor: Alexandre Nassar de Peder
+Criação: 02/10/2025
+Atualização: 03/06/2026
 
-Autor da adaptacao: Raul
-Baseado no fluxo desenvolvido por Alexandre Nassar de Peder.
+OBS1: puxe a pasta "sem-bordas-externas" do passo 2 para esta pasta do passo 3
+
+OBS2: pode ter páginas inteiras e páginas com coluas. Crie uma pasta chamada "inteiras", retire as imagens inteiras e coloque-as nessa pasta
+
+OBS3: observe também se as páginas do seu caderno mantém a mesma altura, tem cadernos que têm duas colunas mas não são exatamente cortadas na metade... se isso acontecer, você vai ter que tratar essas páginas de forma diferente
+
+OBS4: este código vai criar uma pasta de saída chamada "divididas-com-bordas-do-meio", vai cortar ao meio (ver linha 35) as páginas que são colunas e salvar as imagens cortadas nessa pasta criada
+
+OBS5: execute este código. Ao cortar as colunas ao meio, vai gerar uma bordinha interna
+
+OBS6: as imagens vão receber um novo nome, com o sufixo "_esquerda" ou "_direita" para indicar a coluna
 """
 
-from __future__ import annotations
+from PIL import Image
+import os
 
-import sys
-from pathlib import Path
+pasta_imagens = "sem-bordas-externas"
+pasta_saida = "divididas-com-bordas-do-meio"
 
-RAIZ = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(RAIZ))
+os.makedirs(pasta_saida, exist_ok=True)
 
-from config import PASTAS, TOTAL_PAGINAS_QUESTOES
-from utilitarios.comum import abrir_rgb, caminho_relativo, limpar_pasta, listar_pngs
+for nome_arquivo in os.listdir(pasta_imagens):
+    if nome_arquivo.lower().endswith('.png'):
+        caminho_entrada = os.path.join(pasta_imagens, nome_arquivo)
+        imagem = Image.open(caminho_entrada)
 
+        largura, altura = imagem.size
+        
+        metade_largura = largura // 2
+        
+        caixa_esquerda = (0, 0, metade_largura, altura)
+        imagem_esquerda = imagem.crop(caixa_esquerda)
+        
+        caixa_direita = (metade_largura, 0, largura, altura)
+        imagem_direita = imagem.crop(caixa_direita)
+        
+        nome_base, extensao = os.path.splitext(nome_arquivo)
+        
+        caminho_esquerda = os.path.join(pasta_saida, f"{nome_base}_esquerda{extensao}")
+        caminho_direita = os.path.join(pasta_saida, f"{nome_base}_direita{extensao}")
+        
+        imagem_esquerda.save(caminho_esquerda)
+        imagem_direita.save(caminho_direita)
 
-def main() -> None:
-    """Corta cada pagina ao meio, preservando a ordem esquerda-direita."""
-    entrada = caminho_relativo(PASTAS["sem_bordas"])
-    saida = caminho_relativo(PASTAS["metades_com_borda"])
-    limpar_pasta(saida, ("*.png",))
-    arquivos = listar_pngs(entrada)
-    if len(arquivos) != TOTAL_PAGINAS_QUESTOES:
-        raise RuntimeError(f"Esperadas {TOTAL_PAGINAS_QUESTOES} paginas, encontradas {len(arquivos)}.")
-    for arquivo in arquivos:
-        img = abrir_rgb(arquivo)
-        meio = img.width // 2
-        esquerda = img.crop((0, 0, meio, img.height))
-        direita = img.crop((meio, 0, img.width, img.height))
-        base = arquivo.stem
-        esquerda.save(saida / f"{base}_esquerda.png")
-        direita.save(saida / f"{base}_direita.png")
-        print(f"{arquivo.name}: esquerda {esquerda.size}, direita {direita.size}")
-        img.close()
-        esquerda.close()
-        direita.close()
-    print("Divisao em colunas concluida.")
-
-
-if __name__ == "__main__":
-    main()
-
+print("Divisão das imagens ao meio concluída.")
