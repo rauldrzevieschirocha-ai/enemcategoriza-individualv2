@@ -1,57 +1,55 @@
-"""Renomeia as partes para os nomes finais das questoes.
+"""
+Propósito: Renomear as imagens do padrão parte_0xx.png para questao-xx.png
+Autor: Alexandre Nassar de Peder
+Criação: 02/10/2025
+Atualização: 03/06/2026
 
-Autor da adaptacao: Raul
-Baseado no fluxo desenvolvido por Alexandre Nassar de Peder.
+OBS1: puxe todas as pastas do passo 8 para este passo 9
+
+OBS2: você vai atualizar o nome das imagens para seguir um padrão, mas você vai fazer isso pasta por pasta.
+
+OBS3: para cada vez que executar esse código, faça:
+- atualize a linha 22 com o nome da pasta que você vai arrumar
+- atualize o for da linha 32 com o número da primeira imagem "parte_AlgumaCoisa.png" até o número da última imagem "parte_AlgumaCoisa.png" mais 1
+- escolha qual padrão novo de nome você vai usar nas linhas 34 a 36. Deixe apenas uma linha descomentada de cada vez. Se são as questões de ingles, use o padrão com sufixo de ingles; se são questões de espanhol, use o padrão com sufixo de espanhol; se são as outras questões, use o padrão sem sufixo de idioma.
+- dentro do padrão novo de nome, faça a conta para transformar o número do antigo no número do novo. Você pode ler o comentário antes dos padrões para saber qual conta fazer
+- execute o código
 """
 
-from __future__ import annotations
+import os
 
-import sys
-from pathlib import Path
+def renomear_questoes_simples():
+    pasta = "1-5-espanhol" # ATUALIZAR com o nome da pasta das questões que você vai arrumar 
+    
+    if not os.path.exists(pasta):
+        print(f"Pasta {pasta} não encontrada!")
+        return
+    
+    # Mapeamento direto dos nomes antigos para os novos
+    mapeamento = {}
+        
+    # Exemplo: parte_00x a parte_00y -> questao-x a questao-y
+    for i in range(7, 11+1):    # atualize seu for com o número da primeira imagem "parte_AlgumaCoisa.png" até o número da última imagem "parte_AlgumaCoisa.png" mais 1 da pasta
+        antigo = f"parte_{i:03d}.png"
+        #novo = f"questao-{i+78}-espanhol.png"  # faça uma conta: se a primeira pagina for 
+        #novo = f"questao-{i+78}-ingles.png"
+        novo = f"questao-{i-1}.png" # faça uma conta: se o i do teu for está em 2, e precisa virar questão 35, como você transforma 2 em 35? faça a conta e coloque dentro da concatenação
+        
+        mapeamento[antigo] = novo
+    
+    # Aplicar o renomeamento
+    for antigo, novo in mapeamento.items():
+        caminho_antigo = os.path.join(pasta, antigo)
+        caminho_novo = os.path.join(pasta, novo)
+        
+        if os.path.exists(caminho_antigo):
+            os.rename(caminho_antigo, caminho_novo)
+            print(f"Renomeado: {antigo} -> {novo}")
+        else:
+            print(f"Arquivo não encontrado: {antigo}")
+    
+    print("Renomeação concluída!")
 
-RAIZ = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(RAIZ))
-
-from utilitarios.comum import caminho_relativo, copiar_arquivo, limpar_pasta
-from config import PASTAS, TOTAL_IMAGENS_FINAIS
-
-
-def mapa_nomes() -> list[tuple[str, str]]:
-    """Gera o mapeamento parte_XXX -> questao."""
-    pares = []
-    for i in range(1, 6):
-        pares.append((f"parte_{i:03d}.png", f"questao-{i}-ingles.png"))
-    for i in range(1, 6):
-        pares.append((f"parte_{i+5:03d}.png", f"questao-{i}-espanhol.png"))
-    parte = 11
-    for questao in range(6, 91):
-        pares.append((f"parte_{parte:03d}.png", f"questao-{questao}.png"))
-        parte += 1
-    return pares
-
-
-def main() -> None:
-    """Copia imagens renomeadas para a pasta do passo 9."""
-    entrada = caminho_relativo(PASTAS["questoes_colunas"])
-    saida = caminho_relativo(PASTAS["passo9"])
-    limpar_pasta(saida, ("questao-*.png",))
-    pares = mapa_nomes()
-    if len(pares) != TOTAL_IMAGENS_FINAIS:
-        raise RuntimeError("Mapeamento interno invalido.")
-    print("Previa do mapeamento:")
-    for origem_nome, destino_nome in pares:
-        print(f"{origem_nome} -> {destino_nome}")
-    for origem_nome, destino_nome in pares:
-        origem = entrada / origem_nome
-        destino = saida / destino_nome
-        if not origem.exists():
-            raise FileNotFoundError(f"Origem ausente: {origem}")
-        if destino.exists():
-            raise FileExistsError(f"Destino ja existe: {destino}")
-        copiar_arquivo(origem, destino)
-    print("Questoes renomeadas.")
-
-
+# Executar
 if __name__ == "__main__":
-    main()
-
+    renomear_questoes_simples()
