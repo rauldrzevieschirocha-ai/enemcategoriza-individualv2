@@ -1,66 +1,118 @@
-"""Remove excessos brancos inferiores das questoes.
+from PIL import Image
+import os
+import shutil
 
-Autor da adaptacao: Raul
-Baseado no fluxo desenvolvido por Alexandre Nassar de Peder.
-"""
+def encontrar_faixa_cinza(imagem, cor_alvo, tolerancia=15):
+    """
+    Encontra a faixa cinza (altura de 5px, largura total com margem de até 3px de erro) de baixo para cima.
+    Retorna a posição Y onde deve ser feito o corte (acima da faixa) ou None se não encontrar.
+    """
+    largura, altura = imagem.size
+    pixels = imagem.load()
+    
+    # Percorre a imagem de baixo para cima (precisa de pelo menos 5 pixels de altura para a faixa)
+    for y in range(altura - 1, 4, -1):
+        faixa_encontrada = True
+        
+        # Verifica as 5 linhas que compõem a faixa (de y-4 até y)
+        for dy in range(5):
+            pixel_y = y - 4 + dy
+            if pixel_y < 0:
+                faixa_encontrada = False
+                break
+                
+            pixels_validos = 0
+            # Percorre a largura da linha
+            for x in range(largura):
+                pixel = pixels[x, pixel_y]
+                if len(pixel) == 4:  # RGBA
+                    r, g, b, a = pixel
+                else:  # RGB
+                    r, g, b = pixel[:3]
+                
+                # Verifica se o pixel corresponde à cor alvo (dentro da tolerância)
+                if (abs(r - cor_alvo[0]) <= tolerancia and 
+                    abs(g - cor_alvo[1]) <= tolerancia and 
+                    abs(b - cor_alvo[2]) <= tolerancia):
+                    pixels_validos += 1
+            
+            # Margem de erro de até 3px na largura (precisa ter pelo menos largura - 3 pixels da cor)
+            if pixels_validos < (largura - 3):
+                faixa_encontrada = False
+                break
+        
+        if faixa_encontrada:
+            print(f"Faixa cinza encontrada! Cortando na posição y={y-4}")
+            return y - 4  # Retorna a posição logo acima da faixa cinza
+    
+    return None
 
-from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-RAIZ = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(RAIZ))
-
-from config import BRANCO_TOLERANCIA, MARGEM_SEGURANCA_INFERIOR, MARGEM_SEGURANCA_LATERAL, PASTAS, TOTAL_IMAGENS_FINAIS
-from utilitarios.comum import abrir_rgb, caminho_relativo, chave_questao_final, limpar_pasta, listar_pngs
-
-
-def bbox_nao_branco(img):
-    """Encontra o bounding box de pixels que nao sao quase brancos."""
-    pix = img.load()
-    largura, altura = img.size
-    min_x, min_y, max_x, max_y = largura, altura, 0, 0
-    achou = False
-    for y in range(altura):
-        for x in range(largura):
-            r, g, b = pix[x, y]
-            if min(r, g, b) < BRANCO_TOLERANCIA:
-                achou = True
-                min_x = min(min_x, x)
-                min_y = min(min_y, y)
-                max_x = max(max_x, x)
-                max_y = max(max_y, y)
-    if not achou:
-        return None
-    return (min_x, min_y, max_x + 1, max_y + 1)
-
-
-def main() -> None:
-    """Recorta apenas a sobra externa branca, mantendo margem de seguranca."""
-    entrada = caminho_relativo(PASTAS["questoes"])
-    saida = caminho_relativo(PASTAS["finalizadas"])
-    limpar_pasta(saida, ("*.png",))
-    arquivos = sorted(listar_pngs(entrada), key=chave_questao_final)
-    if len(arquivos) != TOTAL_IMAGENS_FINAIS:
-        raise RuntimeError(f"Esperadas {TOTAL_IMAGENS_FINAIS} imagens, encontradas {len(arquivos)}.")
+def processar_imagens(pasta_origem, pasta_destino, cor_alvo):
+    """
+    Processa todas as imagens da pasta origem, recortando as que têm a faixa cinza inferior
+    e copiando todas para a pasta destino
+    """
+    # Cria a pasta de destino se não existir
+    os.makedirs(pasta_destino, exist_ok=True)
+    
+    # Lista todos os arquivos da pasta origem
+    arquivos = [f for f in os.listdir(pasta_origem) 
+                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))]
+    
+    print(f"Encontrados {len(arquivos)} arquivos para processar")
+    
     for arquivo in arquivos:
-        img = abrir_rgb(arquivo)
-        bbox = bbox_nao_branco(img)
-        if bbox is None:
-            raise RuntimeError(f"Imagem quase totalmente branca: {arquivo.name}")
-        esquerda = max(0, bbox[0] - MARGEM_SEGURANCA_LATERAL)
-        topo = 0
-        direita = min(img.width, bbox[2] + MARGEM_SEGURANCA_LATERAL)
-        base = min(img.height, bbox[3] + MARGEM_SEGURANCA_INFERIOR)
-        recorte = img.crop((esquerda, topo, direita, base))
-        recorte.save(saida / arquivo.name)
-        print(f"{arquivo.name}: {img.size} -> {recorte.size}")
-        img.close()
-        recorte.close()
-    print("Excessos inferiores removidos.")
+        caminho_origem = os.path.join(pasta_origem, arquivo)
+        caminho_destino = os.path.join(pasta_destino, arquivo)
+        
+        try:
+            # Abre a imagem
+            with Image.open(caminho_origem) as imagem:
+                print(f"\nProcessando: {arquivo} ({imagem.width}x{imagem.height})")
+                
+                # Procura pela faixa cinza inferior
+                posicao_corte = encontrar_faixa_cinza(imagem, cor_alvo)
+                
+                if posicao_corte is not None and posicao_corte > 0:
+                    # Se encontrou a faixa, recorta a imagem mantendo o espaço em branco acima dela
+                    area_corte = (0, 0, imagem.width, posicao_corte)
+                    imagem_recortada = imagem.crop(area_corte)
+                    imagem_recortada.save(caminho_destino)
+                    print(f"✓ Imagem recortada: {imagem_recortada.width}x{imagem_recortada.height}")
+                else:
+                    # Se não encontrou faixa, copia a imagem original
+                    shutil.copy2(caminho_origem, caminho_destino)
+                    print(f"✓ Imagem mantida original (sem faixa detectada)")
+                    
+        except Exception as e:
+            print(f"✗ Erro ao processar {arquivo}: {e}")
+            # Tenta copiar o arquivo mesmo com erro
+            try:
+                shutil.copy2(caminho_origem, caminho_destino)
+                print(f"✓ Arquivo copiado mesmo com erro")
+            except:
+                print(f"✗ Não foi possível copiar o arquivo")
 
-
+# Função principal
 if __name__ == "__main__":
-    main()
-
+    # Configurações
+    pasta_origem = "./questoes"
+    pasta_destino = "finalizadas"
+    cor_alvo = (35, 31, 32)  # Cor cinza solicitada (RGB)
+    
+    print("Iniciando processamento de imagens...")
+    print(f"Pasta origem: {pasta_origem}")
+    print(f"Pasta destino: {pasta_destino}")
+    print(f"Cor alvo: RGB{cor_alvo}")
+    
+    # Verifica se a pasta origem existe
+    if not os.path.exists(pasta_origem):
+        print(f"Erro: A pasta '{pasta_origem}' não existe!")
+        exit(1)
+    
+    # Executa o processamento
+    processar_imagens(pasta_origem, pasta_destino, cor_alvo)
+    
+    print("\n" + "="*50)
+    print("Processamento concluído!")
+    print(f"Todas as imagens foram salvas em: {pasta_destino}")
